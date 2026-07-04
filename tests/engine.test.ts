@@ -46,7 +46,7 @@ describe("plan generator", () => {
 });
 
 describe("hot video ranking", () => {
-  it("keeps only videos from the last five days and ranks fast growers first", () => {
+  it("keeps five-day videos that reached 100k views and outgrow the category baseline", () => {
     const now = new Date("2026-07-04T12:00:00.000Z");
     const videos = rankHotVideos(
       [
@@ -66,17 +66,32 @@ describe("hot video ranking", () => {
           growthReason: ""
         },
         {
-          id: "slow",
+          id: "under-100k",
           platform: "bilibili",
-          title: "慢增长",
+          title: "没破10万",
           author: "B",
-          url: "https://example.com/slow",
-          description: "slow",
+          url: "https://example.com/under-100k",
+          description: "under 100k",
           publishedAt: "2026-07-02T12:00:00.000Z",
-          viewCount: 10000,
-          likeCount: 500,
-          favoriteCount: 100,
-          commentCount: 30,
+          viewCount: 99000,
+          likeCount: 5000,
+          favoriteCount: 1000,
+          commentCount: 300,
+          growthScore: 0,
+          growthReason: ""
+        },
+        {
+          id: "baseline",
+          platform: "bilibili",
+          title: "同品类正常增长",
+          author: "B",
+          url: "https://example.com/baseline",
+          description: "baseline",
+          publishedAt: "2026-07-02T12:00:00.000Z",
+          viewCount: 120000,
+          likeCount: 3000,
+          favoriteCount: 800,
+          commentCount: 200,
           growthScore: 0,
           growthReason: ""
         },
@@ -88,7 +103,7 @@ describe("hot video ranking", () => {
           url: "https://example.com/fast",
           description: "fast",
           publishedAt: "2026-07-04T06:00:00.000Z",
-          viewCount: 50000,
+          viewCount: 150000,
           likeCount: 4000,
           favoriteCount: 1500,
           commentCount: 800,
@@ -99,8 +114,9 @@ describe("hot video ranking", () => {
       now
     );
 
-    expect(videos.map((video) => video.id)).toEqual(["fast", "slow"]);
-    expect(videos[0].growthScore).toBeGreaterThan(videos[1].growthScore);
-    expect(videos[0].growthReason).toContain("小时");
+    expect(videos.map((video) => video.id)).toEqual(["fast"]);
+    expect(videos[0].growthScore).toBeGreaterThan(150);
+    expect(videos[0].growthReason).toContain("5天内破10万");
+    expect(videos[0].growthReason).toContain("同品类均值");
   });
 });

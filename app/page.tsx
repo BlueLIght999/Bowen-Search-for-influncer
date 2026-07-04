@@ -2,11 +2,10 @@
 
 import { BarChart3, ClipboardList, Film, Layers3, RefreshCw, Sparkles, Wand2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { categories } from "../src/domain/categories";
 import { defaultInput } from "../src/domain/sampleInputs";
 import type { Category, MvpInput, TrendFetchResult, VideoTrend } from "../src/domain/types";
 import { generatePlan } from "../src/engine/generatePlan";
-
-const categories: Category[] = ["时评热点", "知识科普", "职场成长", "商业分析", "AI科技", "教育观察"];
 
 export default function Page() {
   const [category, setCategory] = useState<Category>(defaultInput.category);
@@ -27,12 +26,12 @@ export default function Page() {
 
   const plan = useMemo(() => generatePlan(input), [input]);
 
-  async function fetchHotVideos() {
+  async function fetchHotVideos(nextCategory = category) {
     setIsLoading(true);
     setError("");
 
     try {
-      const response = await fetch("/api/hot-videos", { cache: "no-store" });
+      const response = await fetch(`/api/hot-videos?category=${encodeURIComponent(nextCategory)}`, { cache: "no-store" });
       if (!response.ok) {
         throw new Error(`请求失败：${response.status}`);
       }
@@ -48,8 +47,8 @@ export default function Page() {
   }
 
   useEffect(() => {
-    fetchHotVideos();
-  }, []);
+    fetchHotVideos(category);
+  }, [category]);
 
   return (
     <main className="min-h-screen bg-paper">
@@ -86,18 +85,18 @@ export default function Page() {
 
           <button
             className="mt-3 flex w-full items-center justify-center gap-2 bg-ink px-4 py-3 font-semibold text-white outline-none transition hover:bg-moss focus:ring-2 focus:ring-coral disabled:cursor-not-allowed disabled:bg-neutral-400"
-            onClick={fetchHotVideos}
+            onClick={() => fetchHotVideos(category)}
             disabled={isLoading}
           >
             <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
-            {isLoading ? "抓取中" : "抓取近五日视频榜单"}
+            {isLoading ? "抓取中" : "刷新该品类热榜Top10"}
           </button>
 
           {error ? <p className="mt-3 border border-coral bg-white p-3 text-sm text-coral">{error}</p> : null}
 
           <div className="mt-5">
             <div className="mb-2 flex items-center justify-between">
-              <h2 className="text-sm font-bold">快速增长范例</h2>
+              <h2 className="text-sm font-bold">{category}热榜 Top10</h2>
               <span className="text-xs text-neutral-500">{trendResult?.source === "live" ? "实时抓取" : "本地回退"}</span>
             </div>
 
@@ -150,7 +149,7 @@ export default function Page() {
           <Panel icon={<BarChart3 className="h-4 w-4" />} title="增长判断">
             <div className="grid gap-3 md:grid-cols-3">
               <Info title="增长依据" body={selectedVideo?.growthReason ?? "等待抓取"} tone="moss" />
-              <Info title="榜单窗口" body="近五日发布，按播放/小时、点赞/小时、收藏/小时和评论/小时综合排序。" tone="sky" />
+              <Info title="榜单窗口" body="近五日发布，播放量达到10万，并且播放/小时显著高于同品类均值。" tone="sky" />
               <Info title="当前限制" body="先用公开榜单和增长代理指标；真实历史增速需要接入平台历史榜或第三方数据源。" tone="gold" />
             </div>
           </Panel>
