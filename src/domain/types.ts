@@ -42,3 +42,25 @@ export interface GeneratedPlan {
   directions: DifferentiatedDirection[];
   reviewPrompt: string;
 }
+
+export interface VideoTrend {
+  id: string;
+  platform: "bilibili";
+  title: string;
+  author: string;
+  url: string;
+  description: string;
+  publishedAt: string;
+  viewCount: number;
+  likeCount: number;
+  favoriteCount: number;
+  commentCount: number;
+  growthScore: number;
+  growthReason: string;
+}
+
+export interface TrendFetchResult {
+  source: "live" | "fallback";
+  updatedAt: string;
+  videos: VideoTrend[];
+}

@@ -1,25 +1,59 @@
 "use client";
 
-import { ClipboardList, Film, Layers3, RefreshCw, Sparkles, Wand2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { BarChart3, ClipboardList, Film, Layers3, RefreshCw, Sparkles, Wand2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { defaultInput } from "../src/domain/sampleInputs";
-import type { Category, MvpInput } from "../src/domain/types";
+import type { Category, MvpInput, TrendFetchResult, VideoTrend } from "../src/domain/types";
 import { generatePlan } from "../src/engine/generatePlan";
 
 const categories: Category[] = ["时评热点", "知识科普", "职场成长", "商业分析", "AI科技", "教育观察"];
 
 export default function Page() {
-  const [input, setInput] = useState<MvpInput>(defaultInput);
-  const [submitted, setSubmitted] = useState<MvpInput>(defaultInput);
-  const plan = useMemo(() => generatePlan(submitted), [submitted]);
+  const [category, setCategory] = useState<Category>(defaultInput.category);
+  const [creatorPositioning, setCreatorPositioning] = useState(defaultInput.creatorPositioning);
+  const [commentSignals, setCommentSignals] = useState(defaultInput.commentSignals);
+  const [trendResult, setTrendResult] = useState<TrendFetchResult | null>(null);
+  const [selectedVideoId, setSelectedVideoId] = useState<string>("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  function update<K extends keyof MvpInput>(key: K, value: MvpInput[K]) {
-    setInput((current) => ({ ...current, [key]: value }));
+  const selectedVideo = useMemo(() => {
+    return trendResult?.videos.find((video) => video.id === selectedVideoId) ?? trendResult?.videos[0] ?? null;
+  }, [selectedVideoId, trendResult]);
+
+  const input = useMemo(() => {
+    return selectedVideo ? buildInputFromVideo(selectedVideo, category, creatorPositioning, commentSignals) : defaultInput;
+  }, [category, commentSignals, creatorPositioning, selectedVideo]);
+
+  const plan = useMemo(() => generatePlan(input), [input]);
+
+  async function fetchHotVideos() {
+    setIsLoading(true);
+    setError("");
+
+    try {
+      const response = await fetch("/api/hot-videos", { cache: "no-store" });
+      if (!response.ok) {
+        throw new Error(`请求失败：${response.status}`);
+      }
+
+      const result = (await response.json()) as TrendFetchResult;
+      setTrendResult(result);
+      setSelectedVideoId(result.videos[0]?.id ?? "");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "抓取失败");
+    } finally {
+      setIsLoading(false);
+    }
   }
+
+  useEffect(() => {
+    fetchHotVideos();
+  }, []);
 
   return (
     <main className="min-h-screen bg-paper">
-      <section className="mx-auto grid max-w-7xl gap-5 px-4 py-4 lg:grid-cols-[390px_1fr] lg:px-6">
+      <section className="mx-auto grid max-w-7xl gap-5 px-4 py-4 lg:grid-cols-[430px_1fr] lg:px-6">
         <aside className="border border-line bg-panel p-4 shadow-sm">
           <div className="mb-5 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
@@ -28,60 +62,105 @@ export default function Page() {
               </div>
               <div>
                 <h1 className="text-xl font-bold leading-tight">博闻 MVP</h1>
-                <p className="text-xs text-neutral-500">Local validation cockpit</p>
+                <p className="text-xs text-neutral-500">热点榜单 → 增长样本 → 拍摄建议</p>
               </div>
             </div>
-            <span className="border border-line px-2 py-1 text-xs text-neutral-600">v0.1</span>
+            <span className="border border-line px-2 py-1 text-xs text-neutral-600">v0.2</span>
           </div>
 
           <label className="mb-3 block text-sm font-semibold">
             品类
             <select
               className="mt-1 w-full border border-line bg-white px-3 py-2 outline-none focus:border-sky"
-              value={input.category}
-              onChange={(event) => update("category", event.target.value as Category)}
+              value={category}
+              onChange={(event) => setCategory(event.target.value as Category)}
             >
-              {categories.map((category) => (
-                <option key={category}>{category}</option>
+              {categories.map((item) => (
+                <option key={item}>{item}</option>
               ))}
             </select>
           </label>
 
-          <TextField label="热点" value={input.hotspot} onChange={(value) => update("hotspot", value)} />
-          <TextField label="创作者定位" value={input.creatorPositioning} onChange={(value) => update("creatorPositioning", value)} />
-          <TextArea label="样本标题/字幕/文案/链接描述" value={input.sampleText} onChange={(value) => update("sampleText", value)} rows={8} />
-          <TextArea label="评论区信号" value={input.commentSignals} onChange={(value) => update("commentSignals", value)} rows={4} />
+          <TextField label="创作者定位" value={creatorPositioning} onChange={setCreatorPositioning} />
+          <TextArea label="补充评论信号" value={commentSignals} onChange={setCommentSignals} rows={4} />
 
           <button
-            className="mt-3 flex w-full items-center justify-center gap-2 bg-ink px-4 py-3 font-semibold text-white outline-none transition hover:bg-moss focus:ring-2 focus:ring-coral"
-            onClick={() => setSubmitted(input)}
+            className="mt-3 flex w-full items-center justify-center gap-2 bg-ink px-4 py-3 font-semibold text-white outline-none transition hover:bg-moss focus:ring-2 focus:ring-coral disabled:cursor-not-allowed disabled:bg-neutral-400"
+            onClick={fetchHotVideos}
+            disabled={isLoading}
           >
-            <Wand2 className="h-4 w-4" />
-            生成可拍方案
+            <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
+            {isLoading ? "抓取中" : "抓取近五日视频榜单"}
           </button>
+
+          {error ? <p className="mt-3 border border-coral bg-white p-3 text-sm text-coral">{error}</p> : null}
+
+          <div className="mt-5">
+            <div className="mb-2 flex items-center justify-between">
+              <h2 className="text-sm font-bold">快速增长范例</h2>
+              <span className="text-xs text-neutral-500">{trendResult?.source === "live" ? "实时抓取" : "本地回退"}</span>
+            </div>
+
+            <div className="space-y-2">
+              {(trendResult?.videos ?? []).map((video, index) => (
+                <button
+                  key={video.id}
+                  className={`w-full border p-3 text-left outline-none transition ${
+                    selectedVideo?.id === video.id ? "border-ink bg-white" : "border-line bg-paper hover:border-moss"
+                  }`}
+                  onClick={() => setSelectedVideoId(video.id)}
+                >
+                  <div className="mb-1 flex items-center justify-between gap-2">
+                    <span className="text-xs font-bold text-moss">#{index + 1}</span>
+                    <span className="text-xs text-neutral-500">增长分 {video.growthScore}</span>
+                  </div>
+                  <p className="line-clamp-2 text-sm font-bold leading-5">{video.title}</p>
+                  <p className="mt-1 text-xs text-neutral-500">{video.author}</p>
+                  <p className="mt-2 text-xs leading-5 text-neutral-600">{video.growthReason}</p>
+                </button>
+              ))}
+            </div>
+          </div>
         </aside>
 
         <section className="space-y-5">
           <div className="border border-line bg-panel p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <p className="mb-1 text-xs font-bold uppercase tracking-[0.18em] text-moss">Bowen run</p>
-                <h2 className="text-2xl font-bold leading-tight">{submitted.hotspot}</h2>
+              <div className="max-w-4xl">
+                <p className="mb-1 text-xs font-bold uppercase tracking-[0.18em] text-moss">Selected fast grower</p>
+                <h2 className="text-2xl font-bold leading-tight">{selectedVideo?.title ?? "等待榜单抓取"}</h2>
+                {selectedVideo ? (
+                  <a className="mt-2 inline-block text-sm text-sky underline" href={selectedVideo.url} target="_blank" rel="noreferrer">
+                    打开原视频
+                  </a>
+                ) : null}
               </div>
-              <div className="flex gap-2 text-xs">
-                <span className="border border-line px-2 py-1">{submitted.category}</span>
-                <span className="border border-line px-2 py-1">本地规则引擎</span>
-              </div>
+              {selectedVideo ? (
+                <div className="grid grid-cols-2 gap-2 text-xs md:grid-cols-4">
+                  <Metric label="播放" value={formatCount(selectedVideo.viewCount)} />
+                  <Metric label="点赞" value={formatCount(selectedVideo.likeCount)} />
+                  <Metric label="收藏" value={formatCount(selectedVideo.favoriteCount)} />
+                  <Metric label="评论" value={formatCount(selectedVideo.commentCount)} />
+                </div>
+              ) : null}
             </div>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-neutral-700">{plan.summary}</p>
           </div>
 
-          <Panel icon={<ClipboardList className="h-4 w-4" />} title="样本拆解">
+          <Panel icon={<BarChart3 className="h-4 w-4" />} title="增长判断">
+            <div className="grid gap-3 md:grid-cols-3">
+              <Info title="增长依据" body={selectedVideo?.growthReason ?? "等待抓取"} tone="moss" />
+              <Info title="榜单窗口" body="近五日发布，按播放/小时、点赞/小时、收藏/小时和评论/小时综合排序。" tone="sky" />
+              <Info title="当前限制" body="先用公开榜单和增长代理指标；真实历史增速需要接入平台历史榜或第三方数据源。" tone="gold" />
+            </div>
+          </Panel>
+
+          <Panel icon={<ClipboardList className="h-4 w-4" />} title="文案逻辑解析">
             <div className="grid gap-3 md:grid-cols-2">
               <Info title="开头模式" body={plan.analysis.hookPattern} tone="moss" />
               <Info title="情绪触发" body={plan.analysis.emotionalTrigger} tone="coral" />
               <Info title="拍摄场景" body={plan.analysis.sceneStyle} tone="sky" />
-              <Info title="镜头节奏" body={plan.analysis.shotRhythm} tone="gold" />
+              <Info title="收藏触发" body={plan.analysis.collectibleMoment} tone="gold" />
             </div>
             <ol className="mt-4 grid gap-2 text-sm md:grid-cols-2">
               {plan.analysis.copyLogic.map((item, index) => (
@@ -101,7 +180,7 @@ export default function Page() {
             </div>
           </Panel>
 
-          <Panel icon={<Film className="h-4 w-4" />} title="差异化方向">
+          <Panel icon={<Film className="h-4 w-4" />} title="拍摄文案大纲">
             <div className="grid gap-4">
               {plan.directions.map((direction) => (
                 <article key={direction.title} className="border border-line bg-white p-4">
@@ -131,13 +210,31 @@ export default function Page() {
             </div>
           </Panel>
 
-          <Panel icon={<RefreshCw className="h-4 w-4" />} title="发布复盘">
+          <Panel icon={<Wand2 className="h-4 w-4" />} title="发布后回填">
             <p className="text-sm leading-6">{plan.reviewPrompt}</p>
           </Panel>
         </section>
       </section>
     </main>
   );
+}
+
+function buildInputFromVideo(video: VideoTrend, category: Category, creatorPositioning: string, commentSignals: string): MvpInput {
+  return {
+    category,
+    hotspot: video.title,
+    creatorPositioning,
+    sampleText: `标题：${video.title}\n简介：${video.description}\n作者：${video.author}\n增长信号：${video.growthReason}`,
+    commentSignals
+  };
+}
+
+function formatCount(value: number): string {
+  if (value >= 10000) {
+    return `${(value / 10000).toFixed(1)}万`;
+  }
+
+  return `${value}`;
 }
 
 function TextField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
@@ -164,6 +261,15 @@ function TextArea({ label, value, onChange, rows }: { label: string; value: stri
         onChange={(event) => onChange(event.target.value)}
       />
     </label>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="border border-line bg-white px-3 py-2">
+      <p className="text-neutral-500">{label}</p>
+      <p className="text-sm font-bold">{value}</p>
+    </div>
   );
 }
 

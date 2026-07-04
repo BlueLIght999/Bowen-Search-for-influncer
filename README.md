@@ -1,6 +1,6 @@
 # 博闻 Local MVP
 
-本地验证链路：选择品类 -> 输入热点 -> 提交样本 -> 拆解文案和场景 -> 调取知识库 -> 输出差异化可拍方案。
+本地验证链路：抓取近五日视频榜单 -> 找到快速增长范例 -> 解析文案逻辑 -> 调取知识库 -> 输出拍摄文案大纲和建议。
 
 ## Run
 
@@ -13,11 +13,17 @@ Open `http://localhost:3000`.
 
 ## Validation Script
 
-1. Select a category.
-2. Enter a hotspot.
-3. Paste a sample title, transcript, or video link description.
-4. Click generate.
+1. Click `抓取近五日视频榜单`.
+2. Select one fast-growing sample from the left panel.
+3. Review the copy logic analysis.
+4. Review the shooting outline and differentiation advice.
 5. Check whether the output is specific enough to start filming.
+
+## Data Source
+
+The MVP calls `/api/hot-videos`, which tries to fetch Bilibili's public popular video list, filters videos published in the last five days, and ranks them by a proxy growth score: views per hour plus weighted engagement per hour.
+
+If the live request fails, the API returns local fallback samples so the demo flow stays usable.
 
 ## MVP Validation Checklist
 
