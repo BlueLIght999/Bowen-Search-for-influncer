@@ -3,6 +3,12 @@ node_modules/
 out/
 dist/
 coverage/
+.external/
+.trae-html-share-packages/
+bowen-user-research/
+services/**/.venv/
+services/**/__pycache__/
+tsconfig.tsbuildinfo
 .env
 .env.local
 .env.*.local

@@ -8,6 +8,8 @@ export interface MvpInput {
   commentSignals: string;
 }
 
+export type Platform = "bilibili" | "douyin" | "weibo";
+
 export interface SampleAnalysis {
   hookPattern: string;
   copyLogic: string[];
@@ -35,17 +37,25 @@ export interface DifferentiatedDirection {
   outline: string[];
 }
 
+export interface WorkEvaluationDimension {
+  dimension: string;
+  score: number;
+  description: string;
+  keywords: string[];
+}
+
 export interface GeneratedPlan {
   summary: string;
   analysis: SampleAnalysis;
   knowledgeUsed: KnowledgeItem[];
   directions: DifferentiatedDirection[];
+  evaluation: WorkEvaluationDimension[];
   reviewPrompt: string;
 }
 
 export interface VideoTrend {
   id: string;
-  platform: "bilibili";
+  platform: Platform;
   title: string;
   author: string;
   url: string;
@@ -61,6 +71,50 @@ export interface VideoTrend {
 
 export interface TrendFetchResult {
   source: "live" | "fallback";
+  platform: Platform;
   updatedAt: string;
   videos: VideoTrend[];
+}
+
+export interface TranscriptionSegment {
+  start: number;
+  end: number;
+  text: string;
+}
+
+export interface TranscriptionResult {
+  source: "funasr" | "fallback";
+  language?: string;
+  duration?: number;
+  fullText: string;
+  segments: TranscriptionSegment[];
+}
+
+// ---------------------------------------------------------------------------
+// 上传视频差异化分析相关类型
+// ---------------------------------------------------------------------------
+
+export interface UploadedVideoInput {
+  category: Category;
+  hotspot: string;
+  title: string;
+  transcript: string;
+  commentSignals: string;
+  creatorPositioning: string;
+}
+
+export interface DifferentiationScoreMeta {
+  source: string;
+  topicId?: number;
+  topicSize?: number;
+  corpusSize?: number;
+}
+
+export interface UploadedVideoAnalysis {
+  summary: string;
+  analysis: SampleAnalysis;
+  knowledgeUsed: KnowledgeItem[];
+  directions: DifferentiatedDirection[];
+  differentiationMeta: DifferentiationScoreMeta;
+  reviewPrompt: string;
 }
