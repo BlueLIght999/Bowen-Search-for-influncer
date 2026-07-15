@@ -1,0 +1,44 @@
+# 目标创作者配置
+# 注意: bilibili_uid 和 douyin_sec_uid 需要用户手动提供
+# B站 UID 获取方式: 打开UP主主页，URL中的数字即为 UID (如 space.bilibili.com/12345678)
+# 抖音 sec_uid 获取方式: 打开创作者主页，URL中 /user/ 后的长字符串
+
+creators:
+  - key: cheganxuan
+    name: 车干轩
+    description: 豪车车主访谈者，采访豪车拥有者的驾驶体验和生活方式
+    bilibili:
+      uid: ""                    # TODO: 用户手动填写 B站 UID
+      search_keyword: "车干轩"
+    douyin:
+      sec_uid: ""                # TODO: 用户手动填写抖音 sec_uid
+      search_keyword: "车干轩"
+    filters:
+      min_duration_seconds: 120
+      max_duration_seconds: 1800
+      title_keywords: ["访谈", "采访", "车主", "体验", "豪车", "驾驶"]
+      title_exclude: ["广告", "推广", "预告"]
+
+  - key: aiweiqi_vic
+    name: 艾维奇Vic
+    description: 访谈博主
+    bilibili:
+      uid: ""                    # TODO: 用户手动填写 B站 UID
+      search_keyword: "艾维奇Vic"
+    douyin:
+      sec_uid: ""                # TODO: 用户手动填写抖音 sec_uid
+      search_keyword: "艾维奇Vic"
+    filters:
+      min_duration_seconds: 120
+      max_duration_seconds: 1800
+      title_keywords: ["访谈", "采访", "对话", "深度"]
+      title_exclude: ["广告", "推广"]
+
+# 泛搜索模式: 分析头等舱/车评人士这一类深度访谈内容
+general_search:
+  - platform: bilibili
+    keywords: ["头等舱 访谈", "豪车车主 采访", "车评人 深度对话", "豪车 车主故事"]
+    min_view_count: 50000
+  - platform: douyin
+    keywords: ["头等舱人士", "豪车 车主故事", "车评 深度访谈"]
+    min_like_count: 10000

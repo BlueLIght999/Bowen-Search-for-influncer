@@ -21,6 +21,12 @@ class TranscribeRequest(BaseModel):
     platform: str | None = None
 
 
+class TranscribeFileRequest(BaseModel):
+    audioPath: str
+    title: str | None = None
+    fallbackText: str | None = None
+
+
 class TranscriptionSegment(BaseModel):
     start: float = 0
     end: float = 0
@@ -45,20 +51,37 @@ def transcribe(payload: TranscribeRequest) -> TranscriptionResponse:
     media_path = _download_media(str(payload.url))
 
     try:
-        model = _get_model()
-        raw_result = model.generate(input=str(media_path))
-        segments = _normalize_segments(raw_result)
-
-        if not segments:
-            fallback_text = _fallback_text(payload)
-            segments = [TranscriptionSegment(start=0, end=0, text=fallback_text)]
-
-        full_text = "\n".join(segment.text for segment in segments if segment.text).strip()
-        return TranscriptionResponse(fullText=full_text, segments=segments)
+        return _transcribe_media_path(media_path, _fallback_text(payload))
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"FunASR transcription failed: {exc}") from exc
     finally:
         shutil.rmtree(media_path.parent, ignore_errors=True)
+
+
+@app.post("/transcribe-file", response_model=TranscriptionResponse)
+def transcribe_file(payload: TranscribeFileRequest) -> TranscriptionResponse:
+    audio_path = Path(payload.audioPath)
+    fallback_text = "\n".join(part for part in [payload.title or "", payload.fallbackText or ""] if part).strip()
+
+    if not audio_path.is_file():
+        if fallback_text:
+            return TranscriptionResponse(
+                source="fallback",
+                fullText=fallback_text,
+                segments=[TranscriptionSegment(start=0, end=0, text=fallback_text)],
+            )
+        raise HTTPException(status_code=404, detail=f"Audio file not found: {audio_path}")
+
+    try:
+        return _transcribe_media_path(audio_path, fallback_text)
+    except Exception as exc:
+        if fallback_text:
+            return TranscriptionResponse(
+                source="fallback",
+                fullText=fallback_text,
+                segments=[TranscriptionSegment(start=0, end=0, text=fallback_text)],
+            )
+        raise HTTPException(status_code=500, detail=f"FunASR file transcription failed: {exc}") from exc
 
 
 def _get_model() -> Any:
@@ -78,6 +101,18 @@ def _get_model() -> Any:
             device=device,
         )
     return _model
+
+
+def _transcribe_media_path(media_path: Path, fallback_text: str) -> TranscriptionResponse:
+    model = _get_model()
+    raw_result = model.generate(input=str(media_path))
+    segments = _normalize_segments(raw_result)
+
+    if not segments and fallback_text:
+        segments = [TranscriptionSegment(start=0, end=0, text=fallback_text)]
+
+    full_text = "\n".join(segment.text for segment in segments if segment.text).strip()
+    return TranscriptionResponse(fullText=full_text, segments=segments)
 
 
 def _resolve_ffmpeg_dir() -> str | None:

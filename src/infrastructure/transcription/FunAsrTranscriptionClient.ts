@@ -1,4 +1,8 @@
-import type { TranscriptionPort } from "../../application/ports/TranscriptionPort";
+import type {
+  AudioFileTranscriptionPort,
+  AudioFileTranscriptionRequest,
+  TranscriptionPort
+} from "../../application/ports/TranscriptionPort";
 import type { TranscriptionResult, VideoTrend } from "../../domain/types";
 
 interface FunAsrTranscriptionClientOptions {
@@ -6,7 +10,7 @@ interface FunAsrTranscriptionClientOptions {
   timeoutMs?: number;
 }
 
-export class FunAsrTranscriptionClient implements TranscriptionPort {
+export class FunAsrTranscriptionClient implements TranscriptionPort, AudioFileTranscriptionPort {
   private readonly endpoint: string;
   private readonly timeoutMs: number;
 
@@ -49,4 +53,49 @@ export class FunAsrTranscriptionClient implements TranscriptionPort {
       clearTimeout(timeout);
     }
   }
+
+  async transcribeAudioFile(request: AudioFileTranscriptionRequest): Promise<TranscriptionResult> {
+    const result = await this.postTranscription("/transcribe-file", {
+      audioPath: request.audioPath,
+      title: request.title,
+      fallbackText: request.fallbackText
+    });
+
+    return normalizeTranscriptionResult(result);
+  }
+
+  private async postTranscription(path: string, body: unknown): Promise<TranscriptionResult> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+
+    try {
+      const response = await fetch(`${this.endpoint}${path}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal
+      });
+
+      if (!response.ok) {
+        throw new Error(`FunASR service failed: ${response.status}`);
+      }
+
+      return (await response.json()) as TranscriptionResult;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+}
+
+function normalizeTranscriptionResult(result: TranscriptionResult): TranscriptionResult {
+  const segments = result.segments ?? [];
+  return {
+    ...result,
+    source: "funasr",
+    language: result.language ?? "zh",
+    segments,
+    fullText: result.fullText ?? segments.map((segment) => segment.text).join("\n") ?? ""
+  };
 }

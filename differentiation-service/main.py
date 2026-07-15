@@ -26,7 +26,43 @@ from pydantic import BaseModel
 logger = logging.getLogger("differentiation-service")
 logging.basicConfig(level=logging.INFO)
 
-app = FastAPI(title="Bowen Differentiation Service", version="0.1.0")
+app = FastAPI(title="Bowen Differentiation Service", version="0.2.0")
+
+# ---------------------------------------------------------------------------
+# ChromaDB 懒加载（向量存储）
+# ---------------------------------------------------------------------------
+
+_chroma_client = None
+_collections: dict[str, object] = {}
+
+CHROMA_PATH = os.getenv("BOWEN_CHROMA_PATH", os.path.join(os.path.dirname(__file__), "chroma_data"))
+
+
+def get_chroma_client():
+    global _chroma_client
+    if _chroma_client is None:
+        import chromadb
+        logger.info("Initializing ChromaDB at %s", CHROMA_PATH)
+        _chroma_client = chromadb.PersistentClient(path=CHROMA_PATH)
+        logger.info("ChromaDB initialized.")
+    return _chroma_client
+
+
+def get_or_create_collection(name: str = "bowen-knowledge"):
+    if name not in _collections:
+        client = get_chroma_client()
+        model = get_sentence_model()
+        _collections[name] = client.get_or_create_collection(
+            name=name,
+            metadata={"hnsw:space": "cosine"}
+        )
+        # 存储当前维度信息
+        _collections[f"{name}__dimension"] = model.get_sentence_embedding_dimension() if hasattr(model, "get_sentence_embedding_dimension") else 384
+    return _collections[name]
+
+
+def get_collection_dimension(name: str = "bowen-knowledge") -> int:
+    return _collections.get(f"{name}__dimension", 384)
 
 # ---------------------------------------------------------------------------
 # 模型懒加载（首次请求时才加载，避免启动卡住）
@@ -310,6 +346,181 @@ def analyze(req: AnalyzeRequest) -> AnalyzeResponse:
         directions=directions,
         source=uniq_resp.source,
     )
+
+
+# ---------------------------------------------------------------------------
+# 端点 4：文本嵌入（/embed）— 供 TypeScript EmbeddingPort 调用
+# ---------------------------------------------------------------------------
+
+class EmbedRequest(BaseModel):
+    texts: list[str]
+
+
+class EmbedResponse(BaseModel):
+    vectors: list[list[float]]
+    model: str
+    dimension: int
+    source: str
+
+
+@app.post("/embed", response_model=EmbedResponse)
+def embed(req: EmbedRequest) -> EmbedResponse:
+    if not req.texts:
+        return EmbedResponse(vectors=[], model=MODEL_NAME, dimension=384, source="empty")
+
+    try:
+        model = get_sentence_model()
+        embeddings = model.encode(req.texts, normalize_embeddings=True)
+        dim = embeddings.shape[1] if len(embeddings.shape) > 1 else 384
+        vectors = embeddings.tolist() if hasattr(embeddings, "tolist") else [[float(x) for x in row] for row in embeddings]
+        return EmbedResponse(
+            vectors=vectors,
+            model=MODEL_NAME,
+            dimension=dim,
+            source="sentence-transformers"
+        )
+    except Exception as e:
+        logger.warning("embed fallback: %s", e)
+        return EmbedResponse(vectors=[], model=MODEL_NAME, dimension=384, source="fallback")
+
+
+# ---------------------------------------------------------------------------
+# 端点 5-8：向量存储操作（/vector/*）— 供 TypeScript VectorStorePort 调用
+# ---------------------------------------------------------------------------
+
+class VectorEntryInput(BaseModel):
+    id: str
+    text: str
+    metadata: dict = {}
+
+
+class UpsertRequest(BaseModel):
+    collection: str = "bowen-knowledge"
+    entries: list[VectorEntryInput]
+
+
+class UpsertResponse(BaseModel):
+    upserted: int
+    collection: str
+
+
+class QueryRequest(BaseModel):
+    collection: str = "bowen-knowledge"
+    queryText: str
+    topK: int = 5
+    filter: Optional[dict] = None
+
+
+class QueryResultItem(BaseModel):
+    id: str
+    score: float
+    metadata: dict
+
+
+class QueryResponse(BaseModel):
+    results: list[QueryResultItem]
+
+
+class DeleteRequest(BaseModel):
+    collection: str = "bowen-knowledge"
+    ids: list[str]
+
+
+class DeleteResponse(BaseModel):
+    deleted: int
+
+
+@app.post("/vector/upsert", response_model=UpsertResponse)
+def vector_upsert(req: UpsertRequest) -> UpsertResponse:
+    if not req.entries:
+        return UpsertResponse(upserted=0, collection=req.collection)
+
+    try:
+        collection = get_or_create_collection(req.collection)
+        model = get_sentence_model()
+
+        texts = [entry.text for entry in req.entries]
+        embeddings = model.encode(texts, normalize_embeddings=True)
+        embeddings_list = embeddings.tolist() if hasattr(embeddings, "tolist") else [[float(x) for x in row] for row in embeddings]
+
+        ids = [entry.id for entry in req.entries]
+        metadatas = [entry.metadata for entry in req.entries]
+
+        collection.upsert(
+            ids=ids,
+            embeddings=embeddings_list,
+            documents=texts,
+            metadatas=metadatas
+        )
+
+        return UpsertResponse(upserted=len(req.entries), collection=req.collection)
+    except Exception as e:
+        logger.warning("vector upsert fallback: %s", e)
+        return UpsertResponse(upserted=0, collection=req.collection)
+
+
+@app.post("/vector/query", response_model=QueryResponse)
+def vector_query(req: QueryRequest) -> QueryResponse:
+    try:
+        collection = get_or_create_collection(req.collection)
+        model = get_sentence_model()
+
+        query_emb = model.encode([req.queryText], normalize_embeddings=True)
+        query_list = query_emb[0].tolist() if hasattr(query_emb[0], "tolist") else [float(x) for x in query_emb[0]]
+
+        where_filter = None
+        if req.filter:
+            where_filter = {k: v for k, v in req.filter.items() if v is not None}
+
+        results = collection.query(
+            query_embeddings=[query_list],
+            n_results=req.topK,
+            where=where_filter
+        )
+
+        items: list[QueryResultItem] = []
+        if results and results.get("ids"):
+            ids = results["ids"][0]
+            distances = results.get("distances", [[]])[0]
+            metadatas = results.get("metadatas", [[]])[0]
+
+            for i, entry_id in enumerate(ids):
+                dist = distances[i] if i < len(distances) else 1.0
+                # ChromaDB cosine distance: 0=identical, 2=opposite → 转换为相似度分数 0-1
+                score = max(0.0, 1.0 - float(dist) / 2.0)
+                meta = metadatas[i] if i < len(metadatas) else {}
+                items.append(QueryResultItem(id=entry_id, score=round(score, 4), metadata=meta))
+
+        return QueryResponse(results=items)
+    except Exception as e:
+        logger.warning("vector query fallback: %s", e)
+        return QueryResponse(results=[])
+
+
+@app.post("/vector/delete", response_model=DeleteResponse)
+def vector_delete(req: DeleteRequest) -> DeleteResponse:
+    if not req.ids:
+        return DeleteResponse(deleted=0)
+
+    try:
+        collection = get_or_create_collection(req.collection)
+        collection.delete(ids=req.ids)
+        return DeleteResponse(deleted=len(req.ids))
+    except Exception as e:
+        logger.warning("vector delete fallback: %s", e)
+        return DeleteResponse(deleted=0)
+
+
+@app.get("/vector/health")
+def vector_health(collection: str = "bowen-knowledge"):
+    try:
+        col = get_or_create_collection(collection)
+        count = col.count()
+        dim = get_collection_dimension(collection)
+        return {"status": "ok", "collection": collection, "count": count, "dimension": dim}
+    except Exception as e:
+        logger.warning("vector health fallback: %s", e)
+        return {"status": "unavailable", "collection": collection, "count": 0, "dimension": 0}
 
 
 # ---------------------------------------------------------------------------

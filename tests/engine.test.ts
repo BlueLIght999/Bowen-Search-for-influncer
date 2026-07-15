@@ -7,10 +7,12 @@ import { analyzeSample } from "../src/engine/analyzeSample";
 import { generateCandidateDirections, generatePlan } from "../src/engine/generatePlan";
 import { rankHotVideos } from "../src/engine/rankHotVideos";
 import { retrieveKnowledge } from "../src/engine/retrieveKnowledge";
-import { scoreDifferentiation } from "../src/engine/scoreDifferentiation";
+import { scoreDifferentiation } from "../src/application/useCases/scoreDifferentiation";
 import { LocalDifferentiationClient } from "../src/infrastructure/differentiation/LocalDifferentiationClient";
+import { LocalKnowledgeRepository } from "../src/infrastructure/knowledge/LocalKnowledgeRepository";
 import { analyzeUploadedVideo } from "../src/application/useCases/analyzeUploadedVideo";
 import type { DifferentiationPort } from "../src/application/ports/DifferentiationPort";
+import { bowenStrategies } from "../src/knowledge/bowenStrategies";
 
 describe("default MVP input", () => {
   it("contains enough information for a demo run", () => {
@@ -33,7 +35,7 @@ describe("sample analyzer", () => {
 
 describe("knowledge retrieval", () => {
   it("retrieves category and universal knowledge", () => {
-    const items = retrieveKnowledge(defaultInput);
+    const items = retrieveKnowledge(defaultInput, bowenStrategies);
 
     expect(items.some((item) => item.id === "ai-verification")).toBe(true);
     expect(items.some((item) => item.category === "通用")).toBe(true);
@@ -43,7 +45,8 @@ describe("knowledge retrieval", () => {
 
 describe("plan generator", () => {
   it("generates three differentiated shootable directions", () => {
-    const plan = generatePlan(defaultInput);
+    const knowledgeItems = retrieveKnowledge(defaultInput, bowenStrategies);
+    const plan = generatePlan(defaultInput, knowledgeItems);
 
     expect(plan.directions).toHaveLength(3);
     expect(plan.directions[0].outline.length).toBeGreaterThanOrEqual(4);
@@ -52,7 +55,8 @@ describe("plan generator", () => {
   });
 
   it("recommends AI work evaluation dimensions and keywords", () => {
-    const plan = generatePlan(defaultInput);
+    const knowledgeItems = retrieveKnowledge(defaultInput, bowenStrategies);
+    const plan = generatePlan(defaultInput, knowledgeItems);
 
     expect(plan.evaluation).toHaveLength(5);
     expect(plan.evaluation.map((item) => item.dimension)).toContain("脚本优秀度");
@@ -192,7 +196,77 @@ describe("application use cases", () => {
 
     expect(result.source).toBe("fallback");
     expect(result.platform).toBe("bilibili");
+    expect(result.fallbackReason).toContain("live unavailable");
     expect(result.videos.map((video) => video.id)).toEqual(["fast"]);
+  });
+
+  it("explains fallback when live source returns fewer than ten ranked videos", async () => {
+    const now = new Date("2026-07-04T12:00:00.000Z");
+    const liveSource = {
+      fetchCandidates: async () => [
+        {
+          id: "only-live-fast",
+          platform: "bilibili" as const,
+          title: "only live fast",
+          author: "creator",
+          url: "https://example.com/live",
+          description: "fast",
+          publishedAt: "2026-07-04T06:00:00.000Z",
+          viewCount: 200000,
+          likeCount: 5000,
+          favoriteCount: 2000,
+          commentCount: 800,
+          growthScore: 0,
+          growthReason: ""
+        }
+      ]
+    };
+    const fallbackSource = {
+      fetchCandidates: async () => [
+        {
+          id: "fallback-fast",
+          platform: "bilibili" as const,
+          title: "fallback fast",
+          author: "creator",
+          url: "https://example.com/fallback",
+          description: "fast",
+          publishedAt: "2026-07-04T06:00:00.000Z",
+          viewCount: 200000,
+          likeCount: 5000,
+          favoriteCount: 2000,
+          commentCount: 800,
+          growthScore: 0,
+          growthReason: ""
+        },
+        {
+          id: "fallback-baseline",
+          platform: "bilibili" as const,
+          title: "fallback baseline",
+          author: "creator",
+          url: "https://example.com/baseline",
+          description: "baseline",
+          publishedAt: "2026-07-02T12:00:00.000Z",
+          viewCount: 90000,
+          likeCount: 1000,
+          favoriteCount: 300,
+          commentCount: 100,
+          growthScore: 0,
+          growthReason: ""
+        }
+      ]
+    };
+
+    const result = await getHotVideos({
+      category: defaultInput.category,
+      platform: "bilibili",
+      liveSource,
+      fallbackSource,
+      now
+    });
+
+    expect(result.source).toBe("fallback");
+    expect(result.fallbackReason).toBe("实时榜单不足 10 条，已切换到本地演示样本。");
+    expect(result.videos.map((video) => video.id)).toEqual(["fallback-fast"]);
   });
 
   it("passes the selected platform into trend sources", async () => {
@@ -451,6 +525,7 @@ describe("analyzeUploadedVideo use case", () => {
         creatorPositioning: defaultInput.creatorPositioning
       },
       differentiator: localClient,
+      knowledgeRepository: new LocalKnowledgeRepository(),
       referenceTexts: ["AI搜索改变信息获取", "普通人如何用AI工具"]
     });
 
@@ -476,6 +551,7 @@ describe("analyzeUploadedVideo use case", () => {
         creatorPositioning: "科普创作者"
       },
       differentiator: localClient,
+      knowledgeRepository: new LocalKnowledgeRepository(),
       referenceTexts: []
     });
 

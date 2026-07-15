@@ -43,6 +43,7 @@
 
 - 必须测试成功响应结构。
 - 必须测试错误/降级响应。
+- `/api/hot-videos` 必须覆盖 live 失败后 `source=fallback + fallbackReason`，以及非法 category/platform 的默认行为。
 
 新增 UI 状态：
 
@@ -58,6 +59,7 @@ MVP 不追求形式化覆盖率，优先覆盖高风险逻辑：
 - 平台字段映射。
 - LLM/schema 解析。
 - 生成结果结构。
+- 前端轮询客户端的任务状态机契约，尤其是 `status`、`progressPercent`、`isTerminal` 和报告 `jobId` 的一致性。
 
 ## 5. 执行命令
 

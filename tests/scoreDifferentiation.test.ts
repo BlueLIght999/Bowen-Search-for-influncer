@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { scoreDifferentiation } from "../src/engine/scoreDifferentiation";
+import { scoreDifferentiation } from "../src/application/useCases/scoreDifferentiation";
 import { generateCandidateDirections } from "../src/engine/generatePlan";
 import type { DifferentiationPort } from "../src/application/ports/DifferentiationPort";
 import type { DifferentiatedDirection } from "../src/domain/types";

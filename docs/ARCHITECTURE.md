@@ -1,5 +1,7 @@
 # 博闻 — 四层架构规范
 
+> 多模态大模型扩展方案见 `docs/LLM-MULTIMODAL-ARCHITECTURE.md`。
+
 本文定义博闻后续开发的目标架构。当前项目是单体 Next.js 本地 MVP，后续仍保持模块化单体：先把热点发现、视频抓取、文案分析、拍摄建议跑通，再逐步替换真实数据源、LLM、多模态解析和持久化。
 
 ## 1. 架构原则
@@ -35,6 +37,13 @@ domain         business types, ranking, analysis rules, invariants
 | `src/knowledge/bowenStrategies.ts` | domain/data | 内置知识库 |
 | `app/api/hot-videos/route.ts` | interface | 已退化为薄 route，调用 `getHotVideos` |
 | `app/api/generate-plan/route.ts` | interface | 前端生成建议的 HTTP 边界 |
+| `src/domain/jobs/VideoAnalysisJob.ts` | domain | 视频分析任务聚合、合法状态流转和失败记录 |
+| `src/application/useCases/runVideoAnalysisJob.ts` | application | 上传分析主编排，协调媒体、转写、OCR、RAG 和报告 |
+| `src/application/useCases/uploadVideoAsset.ts` | application | 独立视频资产上传用例 |
+| `src/application/useCases/createVideoAnalysisJob.ts` | application | 基于已有资产创建新分析任务 |
+| `src/infrastructure/storage/LocalVideoStorage.ts` | infrastructure | 视频与原始文件名 sidecar 的本地持久化 |
+| `app/api/video-assets/route.ts` | interface | 视频资产上传 HTTP 边界 |
+| `app/api/video-analysis-jobs/route.ts` | interface | 分析任务创建 HTTP 边界 |
 | `app/page.tsx` | interface | UI 状态、交互和结果展示 |
 
 ## 3. MVP 主链路
@@ -55,6 +64,31 @@ domain         business types, ranking, analysis rules, invariants
 - 热榜只关注近五日内快速达到 10 万播放、显著高于同品类增长率的视频。
 - 每个范例必须有可点击视频链接。
 - 输出必须包含文案逻辑、拍摄场景/镜头建议、爆点策略、差异化方向。
+
+上传分析链路：
+
+```text
+POST /api/video-assets
+  -> uploadVideoAsset
+  -> VideoStoragePort
+  -> storage/uploads
+
+POST /api/video-analysis-jobs
+  -> createVideoAnalysisJob
+  -> LocalBackgroundTaskScheduler
+  -> runVideoAnalysisJob
+  -> JobRepositoryPort / ReportRepositoryPort / ErrorLogPort
+```
+
+`POST /api/upload-video` 是本地演示兼容入口，复用相同编排用例。
+
+前端上传区通过 `src/interface/videoAnalysis/runVideoAnalysisPipelineClient.ts` 执行四步协议：
+
+```text
+upload asset -> create job -> poll job progress -> fetch report
+```
+
+这保证 `GET /api/video-analysis-jobs/:jobId` 的进度读模型真实可见，而不是只在任务完成后展示。
 
 ## 4. 近期重构方向
 

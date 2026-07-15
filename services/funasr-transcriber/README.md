@@ -9,6 +9,7 @@ It exposes a small HTTP API so the Next.js app can request video/audio transcrip
 ```text
 GET  /health
 POST /transcribe
+POST /transcribe-file
 ```
 
 `POST /transcribe` JSON body:
@@ -21,6 +22,21 @@ POST /transcribe
   "platform": "bilibili"
 }
 ```
+
+`POST /transcribe-file` JSON body:
+
+```json
+{
+  "audioPath": "storage/audio/video_123.wav",
+  "title": "optional title",
+  "fallbackText": "optional fallback transcript"
+}
+```
+
+This endpoint is for the local upload MVP. The Next.js app extracts audio with
+ffmpeg, then sends the local wav path to the FunASR service. If the file is
+missing or FunASR fails and `fallbackText` is provided, the service returns a
+`source: "fallback"` response instead of breaking the whole analysis flow.
 
 Response:
 

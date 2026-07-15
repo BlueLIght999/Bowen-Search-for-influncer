@@ -3,11 +3,13 @@ node_modules/
 out/
 dist/
 coverage/
+storage/
 .external/
 .trae-html-share-packages/
 bowen-user-research/
 services/**/.venv/
 services/**/__pycache__/
+differentiation-service/chroma_data/
 tsconfig.tsbuildinfo
 .env
 .env.local
@@ -17,3 +19,10 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 *.log
+
+# 视频案例文件（大文件，不入库）
+case/
+
+# TRAE 内部文件
+.trae/
+memory/

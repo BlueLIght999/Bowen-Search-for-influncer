@@ -1,5 +1,6 @@
-import type { DifferentiationPort } from "../application/ports/DifferentiationPort";
-import type { DifferentiatedDirection, DifferentiationScoreMeta } from "../domain/types";
+import type { DifferentiationPort } from "../ports/DifferentiationPort";
+import type { DifferentiatedDirection, DifferentiationScoreMeta } from "../../domain/types";
+import { rankByCompositeScore } from "../../engine/rankByCompositeScore";
 
 export interface ScoreDifferentiationInput {
   directions: DifferentiatedDirection[];
@@ -13,14 +14,14 @@ export interface ScoreDifferentiationOutput {
 }
 
 /**
- * 差异化评分引擎
+ * 差异化评分用例
  *
  * 接收候选方向列表，调用 DifferentiationPort（sentence-transformers + BERTopic）
  * 为每个方向计算真实 uniquenessScore 和 competitionScore，
- * 替换原来 generatePlan 中的硬编码数值。
+ * 然后用纯函数 rankByCompositeScore 排序。
  *
  * 如果远程服务不可用，端口适配器内部会回退到启发式评分，
- * 这里额外做一次 try-catch 保证引擎永不抛错。
+ * 这里额外做一次 try-catch 保证用例永不抛错。
  */
 export async function scoreDifferentiation(
   input: ScoreDifferentiationInput
@@ -76,12 +77,8 @@ export async function scoreDifferentiation(
     })
   );
 
-  // 3. 按综合得分排序：uniquenessScore 越高越好，competitionScore 越低越好
-  const sorted = [...scoredDirections].sort((a, b) => {
-    const scoreA = a.uniquenessScore - a.competitionScore * 0.5;
-    const scoreB = b.uniquenessScore - b.competitionScore * 0.5;
-    return scoreB - scoreA;
-  });
+  // 3. 用纯函数排序
+  const sorted = rankByCompositeScore(scoredDirections);
 
   return {
     directions: sorted,

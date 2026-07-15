@@ -28,5 +28,26 @@ export const bowenStrategies: KnowledgeItem[] = [
     title: "收藏型清单",
     strategy: "把观点收束成3-5条可复用清单，放在结尾触发收藏。",
     appliesWhen: ["收藏", "清单", "方法"]
+  },
+  {
+    id: "ai-drama-reversal",
+    category: "通用",
+    title: "AI漫剧反转钩子",
+    strategy: "AI漫剧优先把身份反转、关系冲突或背叛证据前置到前三秒，并用结尾悬念引导下一集。",
+    appliesWhen: ["AI漫剧", "短剧", "identity reversal", "cliffhanger", "反转", "下一集"]
+  },
+  {
+    id: "subtitle-readability",
+    category: "通用",
+    title: "字幕可读性",
+    strategy: "字幕需要明确说话人、避免遮挡角色表情，并在关键反转处减少信息堆叠。",
+    appliesWhen: ["subtitle legibility", "subtitle readability", "字幕", "可读性"]
+  },
+  {
+    id: "visual-style-continuity",
+    category: "通用",
+    title: "AI画风连续性",
+    strategy: "生成式画面要控制角色脸型、服装、光线和场景风格漂移，避免观众出戏。",
+    appliesWhen: ["style drift", "style consistency", "画风", "风格漂移", "连续性"]
   }
 ];

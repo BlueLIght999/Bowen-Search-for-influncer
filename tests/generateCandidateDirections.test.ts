@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { generateCandidateDirections, generatePlan } from "../src/engine/generatePlan";
 import { defaultInput } from "../src/domain/sampleInputs";
 import type { Category } from "../src/domain/types";
+import { retrieveKnowledge } from "../src/engine/retrieveKnowledge";
+import { bowenStrategies } from "../src/knowledge/bowenStrategies";
 
 /**
  * generateCandidateDirections 边界测试
@@ -135,7 +137,8 @@ describe("generateCandidateDirections - 边界输入", () => {
 
 describe("generatePlan - 与 generateCandidateDirections 的一致性", () => {
   it("generatePlan 返回的方向与 generateCandidateDirections 一致", () => {
-    const plan = generatePlan(defaultInput);
+    const knowledgeItems = retrieveKnowledge(defaultInput, bowenStrategies);
+    const plan = generatePlan(defaultInput, knowledgeItems);
     const candidates = generateCandidateDirections({
       category: defaultInput.category,
       hotspot: defaultInput.hotspot,

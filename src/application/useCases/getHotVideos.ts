@@ -32,15 +32,25 @@ export async function getHotVideos({
       };
     }
 
-    throw new Error("Live source returned too few ranked videos");
-  } catch {
+    throw new Error("LIVE_RANKED_VIDEOS_TOO_FEW");
+  } catch (error) {
     const fallbackCandidates = await fallbackSource.fetchCandidates(category, platform);
 
     return {
       source: "fallback",
       platform,
       updatedAt,
+      fallbackReason: toFallbackReason(error),
       videos: rankHotVideos(fallbackCandidates, now).slice(0, 10)
     };
   }
+}
+
+function toFallbackReason(error: unknown): string {
+  const message = error instanceof Error ? error.message : "live source unavailable";
+  if (message === "LIVE_RANKED_VIDEOS_TOO_FEW") {
+    return "实时榜单不足 10 条，已切换到本地演示样本。";
+  }
+
+  return `实时榜单暂时不可用，已切换到本地演示样本：${message}`;
 }

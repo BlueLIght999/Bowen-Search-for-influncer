@@ -4,6 +4,7 @@ import { isCategory } from "../../../src/domain/categories";
 import type { Category, UploadedVideoInput, VideoTrend } from "../../../src/domain/types";
 import { LocalDifferentiationClient } from "../../../src/infrastructure/differentiation/LocalDifferentiationClient";
 import { RemoteDifferentiationClient } from "../../../src/infrastructure/differentiation/RemoteDifferentiationClient";
+import { createKnowledgeRepository } from "../../../src/infrastructure/knowledge/createKnowledgeRepository";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +40,7 @@ export async function POST(request: Request) {
   // 先尝试远程 P0 算法服务，失败回退本地
   const remoteClient = new RemoteDifferentiationClient();
   const localClient = new LocalDifferentiationClient();
+  const knowledgeRepository = await createKnowledgeRepository();
 
   const referenceTexts = body.referenceTexts ?? [];
 
@@ -46,6 +48,7 @@ export async function POST(request: Request) {
     const result = await analyzeUploadedVideo({
       input,
       differentiator: remoteClient,
+      knowledgeRepository,
       referenceTexts
     });
     return NextResponse.json(result);
@@ -54,6 +57,7 @@ export async function POST(request: Request) {
     const result = await analyzeUploadedVideo({
       input,
       differentiator: localClient,
+      knowledgeRepository,
       referenceTexts
     });
     return NextResponse.json(result);

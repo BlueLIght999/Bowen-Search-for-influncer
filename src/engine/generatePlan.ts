@@ -1,7 +1,6 @@
-import type { Category, DifferentiatedDirection, GeneratedPlan, MvpInput } from "../domain/types";
+import type { Category, DifferentiatedDirection, GeneratedPlan, KnowledgeItem, MvpInput } from "../domain/types";
 import { analyzeSample } from "./analyzeSample";
 import { evaluateAiWork } from "./evaluateAiWork";
-import { retrieveKnowledge } from "./retrieveKnowledge";
 
 export interface CandidateDirectionsInput {
   category: Category;
@@ -56,9 +55,9 @@ export function generateCandidateDirections(
  * 注意：此函数返回的 uniquenessScore / competitionScore 是占位值。
  * 如需真实评分，请使用 scoreDifferentiation 引擎 + DifferentiationPort。
  */
-export function generatePlan(input: MvpInput): GeneratedPlan {
+export function generatePlan(input: MvpInput, knowledgeItems: KnowledgeItem[]): GeneratedPlan {
   const analysis = analyzeSample(input);
-  const knowledgeUsed = retrieveKnowledge(input);
+  const knowledgeUsed = knowledgeItems;
   const evaluation = evaluateAiWork(input, analysis);
   const directions = generateCandidateDirections({
     category: input.category,
